@@ -167,12 +167,12 @@ def main(container: Element) =
           "#/active",
           // TODO: Drop history of BindingSeq
           allTodos.flatMap { todo =>
-            BindingSeq(
+            BindingSeq.fromIterableCovariantStreamT(
               Binding {
                 if (!Bind(todo.isCompleted)) {
-                  BindingSeq.Patch.ReplaceChildren(View.Empty)
+                  View.Empty
                 } else {
-                  BindingSeq.Patch.ReplaceChildren(View.Single(todo))
+                  View.Single(todo)
                 }
               }
             )
@@ -183,12 +183,12 @@ def main(container: Element) =
           "#/completed",
           // TODO: Drop history of BindingSeq
           allTodos.flatMap { todo =>
-            BindingSeq(
+            BindingSeq.fromIterableCovariantStreamT(
               Binding {
                 if (!Bind(todo.isCompleted)) {
-                  BindingSeq.Patch.ReplaceChildren(View.Single(todo))
+                  View.Single(todo)
                 } else {
-                  BindingSeq.Patch.ReplaceChildren(View.Empty)
+                  View.Empty
                 }
               }
             )
