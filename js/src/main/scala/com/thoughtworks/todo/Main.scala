@@ -73,11 +73,8 @@ def main(container: Element) =
          ${
             raw"""
              ${
-                val t = !Bind(editingTodo)
-                println(t.toString)
-                println(t == Some(this))
-                if t == Some(this) then
-                  js.timers.setTimeout(Duration.Zero)(editInput.value.focus());
+                if !Bind(editingTodo) == Some(this) then
+                  js.timers.setTimeout(Duration.Zero)(editInput.value.focus())
                   "editing"
                 else ""
               }
