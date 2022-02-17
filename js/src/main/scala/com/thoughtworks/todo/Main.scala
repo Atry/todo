@@ -160,6 +160,40 @@ def main(container: Element) =
               }
           ))
       )
+  enum TodoList(hash: String, items: BindingSeq[Todo]):
+    case All extends TodoList("#/", allTodos)
+    case Active
+        extends TodoList(
+          "#/active",
+          // TODO: Drop history of BindingSeq
+          allTodos.flatMap { todo =>
+            BindingSeq(
+              Binding {
+                if (!Bind(todo.isCompleted)) {
+                  BindingSeq.Patch.ReplaceChildren(View.Empty)
+                } else {
+                  BindingSeq.Patch.ReplaceChildren(View.Single(todo))
+                }
+              }
+            )
+          }
+        )
+    case Completed
+        extends TodoList(
+          "#/completed",
+          // TODO: Drop history of BindingSeq
+          allTodos.flatMap { todo =>
+            BindingSeq(
+              Binding {
+                if (!Bind(todo.isCompleted)) {
+                  BindingSeq.Patch.ReplaceChildren(View.Single(todo))
+                } else {
+                  BindingSeq.Patch.ReplaceChildren(View.Empty)
+                }
+              }
+            )
+          }
+        )
 
   // TODO: The data structure might be very different from Binding.scala, with the help of LatestEvent we have
   // final case class Todo(val title: String, val completed: Boolean)
