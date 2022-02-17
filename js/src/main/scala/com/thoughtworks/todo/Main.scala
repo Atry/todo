@@ -160,7 +160,7 @@ def main(container: Element) =
               }
           ))
       )
-  enum TodoList(hash: String, items: BindingSeq[Todo]):
+  enum TodoList(val hash: String, val items: BindingSeq[Todo]):
     case All extends TodoList("#/", allTodos)
     case Active
         extends TodoList(
@@ -283,29 +283,56 @@ def main(container: Element) =
   lazy val mainSection =
     html"""<ul class="todo-list">${allTodos.flatMap(_.html)}</ul>"""
 
-  def footer: BindingSeq[Node] =
-    // def clearCompletedClickHandler = { (_: Event) =>
-    //   allTodos.value --= (for (todo <- allTodos.value if todo.completed) yield todo)
-    // }
-    html"<br><br>"
-  // html"""
-  //   <footer class="footer" style={ if (allTodos.length.bind == 0) "display:none" else "" }>
-  //     <span class="todo-count">
-  //       <strong>{ active.items.length.bind.toString }</strong> { if (active.items.length.bind == 1) "item" else "items"} left
-  //     </span>
-  //     <ul class="filters">{
-  //       for (todoList <- todoLists) yield {
-  //         <li>
-  //           <a href={ todoList.hash } class={ if (todoList == route.state.bind) "selected" else "" }>{ todoList.text }</a>
-  //         </li>
-  //       }
-  //     }</ul>
-  //     <button class="clear-completed" onclick={clearCompletedClickHandler}
-  //             style={if (completed.items.length.bind == 0) "visibility:hidden" else "visibility:visible"}>
-  //       Clear completed
-  //     </button>
-  //   </footer>
-  // """
+  lazy val footer: BindingSeq[Node] =
+    html"""
+      <footer
+        class="footer"
+        style=
+         ${
+            (!Bind(allTodos.snapshots)).measure
+              .getOrElse(0) match
+              case 0 =>
+                "display: none"
+              case _ =>
+                ""
+          }
+      >
+				<!-- This should be `0 items left` by default -->
+				<span class="todo-count">
+          <strong>
+           ${
+              (!Bind(
+                TodoList.Active.items.snapshots
+              )).measure.getOrElse(0).toString
+            }
+          </strong>
+         ${
+            (!Bind(
+              TodoList.Active.items.snapshots
+            )).measure match
+              case Maybe.Just(1) =>
+                "item"
+              case _ =>
+                "items"
+          }
+          left
+        </span>
+				<!-- Remove this if you don't implement routing -->
+				<ul class="filters">
+					<li>
+						<a class="selected" href="#/">All</a>
+					</li>
+					<li>
+						<a href="#/active">Active</a>
+					</li>
+					<li>
+						<a href="#/completed">Completed</a>
+					</li>
+				</ul>
+				<!-- Hidden if no completed items are left ↓ -->
+				<button class="clear-completed">Clear completed</button>
+			</footer>
+    """
 
   render(
     container,
