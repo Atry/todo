@@ -1,67 +1,110 @@
 package com.thoughtworks.todo
 
-import com.thoughtworks.dsl.Dsl
-import com.thoughtworks.dsl.keywords.*
-import com.thoughtworks.dsl.domains.scalaz.given
-import com.thoughtworks.dsl.macros.Reset.Default.*
-import com.thoughtworks.binding.html.*
-import com.thoughtworks.binding.*
-import com.thoughtworks.binding.keywords.Bind
-import com.thoughtworks.binding.bindable.Bindable
-import com.thoughtworks.binding.Binding.*
+import com.thoughtworks.binding
 import com.thoughtworks.binding.Binding.BindingSeq.Snapshot
-// import com.thoughtworks.binding.Binding.BindingInstances.monadSyntax._
-
-import scala.collection.View
-import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
-import org.scalajs.dom.*
-// import org.scalajs.dom.ext.{KeyCode, LocalStorage}
-// import upickle.default.*
-import scala.concurrent.ExecutionContext.Implicits.given
+import com.thoughtworks.binding.Binding.*
+import com.thoughtworks.binding.*
 import com.thoughtworks.binding.bindable
+import com.thoughtworks.binding.bindable.Bindable
+import com.thoughtworks.binding.html.*
+import com.thoughtworks.binding.keywords.Bind
+import com.thoughtworks.dsl.Dsl
+import com.thoughtworks.dsl.domains.scalaz.given
+import com.thoughtworks.dsl.keywords.*
+import com.thoughtworks.dsl.macros.Reset.Default.*
+import org.scalajs.dom.*
 import scalaz.*
 
-// TODO: Remove this polyfill when https://github.com/scalaz/scalaz/pull/2262 is merged
-import com.thoughtworks.binding.DefaultFuture.given
-import com.thoughtworks.binding
-import com.thoughtworks.binding
+import scala.collection.View
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.Promise
+import scala.concurrent.duration.Duration
+import scala.scalajs.js
+import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.js.annotation.JSExportTopLevel
+import scala.scalajs.js.timers.SetTimeoutHandle
 
-// extension [M[_], A](stream: => StreamT[M, A])
-//   def #::(a: => A)(implicit M: Applicative[M]): StreamT[M, A] =
-//     StreamT(M.pure(StreamT.Yield(a, () => stream)))
-extension [M[_], A](a: => A)
-  def #::(stream: => StreamT[M, A])(implicit M: Applicative[M]): StreamT[M, A] =
-    StreamT(M.pure(StreamT.Yield(a, () => stream)))
+// This does not work
+// given ExecutionContext = ExecutionContext.parasitic
+
+// This does not work
+// import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.given
+import ExecutionContext.Implicits.given
+
+enum EditEvent:
+  case Start, Stop
 
 @JSExportTopLevel("main")
 def main(container: Element) =
-  final class Todo(initialTitle: String):
-    // val (readKeyDownEvent, writeKeyDownEvent) = Binding.jsPipe[KeyboardEvent]
+
+  @inline given Equal[Option[Todo]] = Equal.equalA[Option[Todo]]
+  final class Todo(initialTitle: String, isInitiallyCompleted: Boolean):
+    val (readToggleClickEvent, writeToggleClickEvent) =
+      Binding.jsPipe[MouseEvent]
     val (readDblclickEvent, writeDblclickEvent) = Binding.jsPipe[MouseEvent]
-    val (readOnchangeEvent, writeOnchangeEvent) = Binding.jsPipe[Event]
-    val title: Binding[String] = initialTitle :: readOnchangeEvent.map(
-      _.currentTarget.asInstanceOf[HTMLInputElement].value
-    )
-    // val isCompleted: Binding[Boolean] = ???
-    // val isEditing: Binding[Boolean] = ???
-    // val onchangeEvents = Var[Event]()
+    val (readBlurEvent, writeBlurEvent) = Binding.jsPipe[Event]
+    val (readKeyDownEvent, writeKeyDownEvent) = Binding.jsPipe[KeyboardEvent]
+    val submit = readKeyDownEvent
+      .filter(_.keyCode == KeyCode.Enter)
+      .mergeWith(readBlurEvent)
+    val title: Binding[String] =
+      initialTitle :: submit.map(_ => editInput.value.value)
+    val editEvent =
+      readDblclickEvent
+        .map { _ =>
+          println("readDblclickEvent")
+          EditEvent.Start
+        }
+        .mergeWith(submit.map(_ => EditEvent.Stop))
+    val isCompleted: Binding[Boolean] = isInitiallyCompleted :: Binding {
+      !Bind(readToggleClickEvent)
+      toggleInput.value.checked
+    }
     private val onDestroyPromise: Promise[Event] = Promise()
     def onDestroy: Future[Event] = onDestroyPromise.future
+    lazy val toggleInput: NodeBinding[HTMLInputElement] =
+      html"""<input class="toggle" type="checkbox" onclick=$writeToggleClickEvent>"""
+    lazy val editInput: NodeBinding[HTMLInputElement] =
+      html"""<input class="edit" onblur=$writeBlurEvent onkeydown=$writeKeyDownEvent value=$title>"""
     val html = html"""
-      <li class=${raw"""${if (!Bind(editingTodo) == this) then "editing" else ""} """}>
+      <li
+        class=
+         ${
+            raw"""
+             ${
+                val t = !Bind(editingTodo)
+                println(t.toString)
+                println(t == Some(this))
+                if t == Some(this) then
+                  js.timers.setTimeout(Duration.Zero)(editInput.value.focus());
+                  "editing"
+                else ""
+              }
+             ${if !Bind(isCompleted) then "completed" else ""}
+            """
+          }
+      >
         <div class="view">
-          <input class="toggle" type="checkbox">
+          $toggleInput
           <label ondblclick=$writeDblclickEvent>$title</label>
           <button class="destroy" onclick=${onDestroyPromise.success}></button>
         </div>
-        <input class="edit" onchange=$writeOnchangeEvent value=$title>
+        $editInput
       </li>
     """
 
-  def editingTodo: Binding[Option[Todo]] = ???
+  lazy val editingTodo: Binding[Option[Todo]] = Binding.dropHistory(
+    (None #:: allTodos.mergeMap { todo =>
+      Binding {
+        (!Bind(todo.editEvent)) match
+          case EditEvent.Start =>
+            Some(todo)
+          case EditEvent.Stop =>
+            None
+      }
+    }).distinctUntilChanged
+  )
 
   object Header:
     private val (readKeyDownEvent, writeKeyDownEvent) =
@@ -101,7 +144,7 @@ def main(container: Element) =
               BindingSeq.Patch.Splice(
                 snapshot.measure.getOrElse(0),
                 0,
-                View.Single(Todo(title))
+                View.Single(Todo(title, isInitiallyCompleted = false))
               )
           })
           .mergeWith(
