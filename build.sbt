@@ -1,6 +1,6 @@
 enablePlugins(SbtJsEngine)
 
-scalaVersion in Global := "2.13.7"
+scalaVersion in Global := "3.1.0"
 
 lazy val js = project
 
@@ -24,7 +24,7 @@ indexHtml := {
       <script type="text/javascript" src="node_modules/todomvc-common/base.js"></script>
       <script type="text/javascript" src={ linkedJs.data.relativeTo(baseDirectory.value).get.toString }></script>
       <div id="application-container"></div>
-      <script type="text/javascript"> Main.main(document.getElementById('application-container')) </script>
+      <script type="text/javascript"> main(document.getElementById('application-container')) </script>
     </body>
   </html>
   val outputFile = baseDirectory.value / "index.html"

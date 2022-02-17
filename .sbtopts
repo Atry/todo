@@ -1,0 +1,5 @@
+-J-XX:MaxMetaspaceSize=512M
+-J-Xmx5G
+-J-Xss2M
+-J-XX:+UseG1GC
+-J-XX:-OmitStackTraceInFastThrow
