@@ -282,6 +282,10 @@ def main(container: Element) =
 // }
   lazy val mainSection =
     html"""<ul class="todo-list">${allTodos.flatMap(_.html)}</ul>"""
+    // TODO: Inject some ReplaceChildren
+    // html"""<ul class="todo-list">${(!Bind(selectedTodoList)).items.flatMap(_.html)}</ul>"""
+
+  lazy val selectedTodoList = Var(TodoList.All)
 
   lazy val footer: BindingSeq[Node] =
     html"""
@@ -297,7 +301,6 @@ def main(container: Element) =
                 ""
           }
       >
-				<!-- This should be `0 items left` by default -->
 				<span class="todo-count">
           <strong>
            ${
@@ -319,15 +322,21 @@ def main(container: Element) =
         </span>
 				<!-- Remove this if you don't implement routing -->
 				<ul class="filters">
-					<li>
-						<a class="selected" href="#/">All</a>
-					</li>
-					<li>
-						<a href="#/active">Active</a>
-					</li>
-					<li>
-						<a href="#/completed">Completed</a>
-					</li>
+         ${
+            for todoList <- TodoList.values
+            yield html"""<li>
+              <a
+                class=
+                 ${
+                    // Workaround for https://github.com/lampepfl/dotty/issues/14510
+                    if todoList.toString == (!Bind(selectedTodoList)).toString
+                    then "selected"
+                    else "notSelected"
+                  }
+                href=${todoList.hash}
+              >${todoList.toString}</a>
+            </li>"""
+          }
 				</ul>
 				<!-- Hidden if no completed items are left ↓ -->
 				<button class="clear-completed">Clear completed</button>
@@ -344,6 +353,14 @@ def main(container: Element) =
         <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
       </footer>
     """
+  )
+  window.addEventListener(
+    "hashchange",
+    { event =>
+      TodoList.values
+        .find(_.hash == window.location.hash)
+        .foreach(selectedTodoList.value = _)
+    }
   )
 
 // def spinner(initialValue: Int): (Binding[Int], NodeBinding[HTMLDivElement]) =
